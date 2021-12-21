@@ -13,7 +13,7 @@ docker-compose up -d
 ### Query the service:
 
 ```bash
-curl --request POST -d "CN(Cc1cnc2nc(N)nc(N)c2n1)c1ccc(C(=O)N[C@@H](CCC(=O)O)C(=O)O)cc1" http://localhost:9080/painsFilters
+curl --request POST -d "O=C(Cn1cnc2c1c(=O)n(C)c(=O)n2C)N/N=C/c1c(O)ccc2c1cccc2" http://localhost:9080/murckoScaffold
 ```
 
 ### To stop and delete the running container

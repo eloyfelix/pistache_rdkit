@@ -1,24 +1,20 @@
+#include <nlohmann/json.hpp>
+
 #include <pistache/http.h>
 #include <pistache/router.h>
 #include <pistache/endpoint.h>
 
+#include <GraphMol/inchi.h>
+#include <GraphMol/GraphMol.h>
 #include <GraphMol/FMCS/FMCS.h>
+#include <GraphMol/MolHash/MolHash.h>
+#include <GraphMol/FileParsers/FileParsers.h>
+#include <GraphMol/SmilesParse/SmilesParse.h>
 #include <GraphMol/FilterCatalog/FilterCatalog.h>
 #include <GraphMol/Descriptors/MolDescriptors.h>
 
-#include <GraphMol/inchi.h>
-#include <GraphMol/GraphMol.h>
-#include <GraphMol/FileParsers/FileParsers.h>
-#include <GraphMol/SmilesParse/SmilesParse.h>
-
-#include <GraphMol/Fingerprints/Fingerprints.h>
-#include <GraphMol/Fingerprints/MorganFingerprints.h>
-
-#include <nlohmann/json.hpp>
-
 using namespace Pistache;
 using json = nlohmann::json;
-
 
 namespace Generic
 {
@@ -27,9 +23,10 @@ namespace Generic
         response.send(Http::Code::Ok, "1");
     }
 
-    std::unique_ptr<RDKit::ROMol> readMol(std::string input)
+    template<typename MOLTYPE>
+    std::unique_ptr<MOLTYPE> readMol(std::string input)
     {
-        std::unique_ptr<RDKit::ROMol> mol;
+        std::unique_ptr<MOLTYPE> mol;
         try
         {
             if (input.find("M  END") != std::string::npos) {
@@ -84,6 +81,7 @@ private:
         Routes::Post(router, "/mol2inchi", Routes::bind(&PistacheRDKit::mol2inchi, this));
         Routes::Post(router, "/inchi2inchikey", Routes::bind(&PistacheRDKit::inchi2inchikey, this));
         Routes::Post(router, "/descriptors", Routes::bind(&PistacheRDKit::descriptors, this));
+        Routes::Post(router, "/murckoScaffold", Routes::bind(&PistacheRDKit::murckoScaffold, this));
     }
 
     void molblock2inchi(const Rest::Request &request, Http::ResponseWriter response)
@@ -102,10 +100,10 @@ private:
          * Get the InChI for a molblock or SMILES with RDKit parsing.
          */
         std::string input(request.body());
-        std::unique_ptr<RDKit::ROMol> mol(Generic::readMol(input));
+        std::unique_ptr<RDKit::ROMol> mol(Generic::readMol<RDKit::ROMol>(input));
         if (!mol)
         {
-            response.send(Http::Code::Internal_Server_Error, "Cannot create molecule from input");
+            response.send(Http::Code::Internal_Server_Error, "Can't create mol object from input");
         }
         else
         {
@@ -131,13 +129,12 @@ private:
          * Find the Maximum Common Substructure of a set of SMILES.
          */
         std::string sbody(request.body());
-
-        // split SMILES in body
         std::stringstream ss(sbody);
-        std::istream_iterator<std::string> begin(ss);
-        std::istream_iterator<std::string> end;
-        std::vector<std::string> smiles(begin, end);
-        std::copy(smiles.begin(), smiles.end(), std::ostream_iterator<std::string>(std::cout, "\n"));
+        std::vector<std::string> smiles;
+        std::string token;
+        while (std::getline(ss, token, '\n')) {
+            smiles.push_back(token);
+        }
 
         std::vector<RDKit::ROMOL_SPTR> mols;
         for(const auto& sm: smiles) {
@@ -151,7 +148,7 @@ private:
                 }
                 else
                 {
-                    std::cerr << "Cannot create molecule from : '" << sm << "'" << std::endl;
+                    std::cerr << "Can't create mol object from : '" << sm << "'" << std::endl;
                 }
             }
             catch (RDKit::MolSanitizeException &e)
@@ -169,8 +166,7 @@ private:
          * Get PAINS filters alerts for a compound.
          */
         std::string input(request.body());
-        std::unique_ptr<RDKit::ROMol> mol(Generic::readMol(input));
-
+        std::unique_ptr<RDKit::ROMol> mol(Generic::readMol<RDKit::ROMol>(input));
         std::vector<std::string> alerts;
         if (!mol)
         {
@@ -193,28 +189,45 @@ private:
          * Get a set of common descriptors for a compound.
          */
         std::string input(request.body());
-        std::unique_ptr<RDKit::ROMol> mol(Generic::readMol(input));
+        std::unique_ptr<RDKit::ROMol> mol(Generic::readMol<RDKit::ROMol>(input));
         std::map<std::string, double> res_map;
         if (!mol)
         {
-            response.send(Http::Code::Internal_Server_Error, "Cannot create molecule from input");
+            response.send(Http::Code::Internal_Server_Error, "Can't create mol object from input");
         }
         else
         {
-            res_map["logP"] = RDKit::Descriptors::calcClogP(*mol);;
-            res_map["mw"] = RDKit::Descriptors::calcExactMW(*mol);
-            res_map["rtb"] = RDKit::Descriptors::calcNumRotatableBonds(*mol);
-            res_map["hba"] = RDKit::Descriptors::calcNumHBA(*mol);
-            res_map["hbd"] = RDKit::Descriptors::calcNumHBD(*mol);
-            res_map["tpsa"] = RDKit::Descriptors::calcTPSA(*mol);
-            res_map["nrings"] = RDKit::Descriptors::calcNumRings(*mol);
-            res_map["nha"] = mol->getNumHeavyAtoms();
-
+            res_map["ClogP"] = RDKit::Descriptors::calcClogP(*mol);
+            res_map["ExactMW"] = RDKit::Descriptors::calcExactMW(*mol);
+            res_map["NumRotatableBonds"] = RDKit::Descriptors::calcNumRotatableBonds(*mol);
+            res_map["NumHBA"] = RDKit::Descriptors::calcNumHBA(*mol);
+            res_map["NumHBD"] = RDKit::Descriptors::calcNumHBD(*mol);
+            res_map["TPSA"] = RDKit::Descriptors::calcTPSA(*mol);
+            res_map["NumRings"] = RDKit::Descriptors::calcNumRings(*mol);
+            res_map["NumHeavyAtoms"] = mol->getNumHeavyAtoms();
         }
         json out(res_map);
         response.send(Http::Code::Ok, out.dump());
     }
 
+    void murckoScaffold(const Rest::Request &request, Http::ResponseWriter response)
+    {
+        /**
+         * Get the Bemis-Murcko scaffold for a molecule.
+         */
+        std::string input(request.body());
+        std::unique_ptr<RDKit::RWMol> mol(Generic::readMol<RDKit::RWMol>(input));
+        std::string scaffold;
+        if (!mol)
+        {
+            response.send(Http::Code::Internal_Server_Error, "Can't create mol object from input");
+        }
+        else
+        {
+            scaffold = RDKit::MolHash::MolHash(mol.get(), RDKit::MolHash::HashFunction::MurckoScaffold);
+        }
+        response.send(Http::Code::Ok, scaffold);
+    }
 
     Rest::Router router;
     std::shared_ptr<Http::Endpoint> httpEndpoint;
