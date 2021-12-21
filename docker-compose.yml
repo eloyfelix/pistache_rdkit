@@ -1,0 +1,12 @@
+version: '3'
+services:
+  pistache_rdkit:
+    build: .
+    networks:
+      - prnet
+    ports:
+      - "9080:9080"
+
+networks:
+  prnet:
+    driver: "bridge"
