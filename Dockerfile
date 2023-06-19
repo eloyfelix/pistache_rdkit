@@ -1,7 +1,7 @@
-FROM debian:bullseye-slim
+FROM debian:bookworm-slim
 
-ARG RDKIT_VERSION=Release_2021_09_2
-ARG PISTACHE_COMMIT=b8c0c699879980ed4bf1d31eba490d54d0a7f0ad
+ARG RDKIT_VERSION=Release_2023_03_2
+ARG PISTACHE_COMMIT=a68ad0902d2cfc23f69fc16e26747ac77bc2f123
 
 RUN apt-get update --fix-missing && \
     apt-get install -y g++ \
@@ -44,7 +44,7 @@ RUN curl -LO https://github.com/rdkit/rdkit/archive/${RDKIT_VERSION}.tar.gz && \
     rm -rf /rdkit /${RDKIT_VERSION}.tar.gz
 
 # Install pistache
-RUN git clone https://github.com/oktal/pistache.git && \
+RUN git clone https://github.com/pistacheio/pistache.git && \
     cd pistache && \
     git checkout ${PISTACHE_COMMIT} && \
     meson setup build \
