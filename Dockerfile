@@ -1,7 +1,7 @@
 FROM debian:bookworm-slim
 
-ARG RDKIT_VERSION=Release_2023_03_2
-ARG PISTACHE_COMMIT=a68ad0902d2cfc23f69fc16e26747ac77bc2f123
+ARG RDKIT_VERSION=Release_2024_03_4
+ARG PISTACHE_COMMIT=46ffbb8228333b146c0ac2294439ba68623890b3
 
 RUN apt-get update --fix-missing && \
     apt-get install -y g++ \
